@@ -5,9 +5,13 @@ import cookielib
 import requests
 import time
 import os
+import sys
 import random
+import win32api
+import log
 from bs4 import BeautifulSoup
 from ip_request import requestPool
+from dbHelper import dbHelper
 
 class PixivSpider:
 	def __init__(self):
@@ -35,10 +39,10 @@ class PixivSpider:
 		post_key_html = self.se.get(self.referer_url, headers=self.headers).text
 		post_key_soup = BeautifulSoup(post_key_html, 'lxml')
 		post_key = post_key_soup.find('input')['value']
-		print("post_key="+post_key)
+		log.out("post_key="+post_key)
 		
-		self.postdata = urllib.urlencode({'pixiv_id' : 'xxxxxxxx@qq.com',
-			'password' : 'xxxxxx',
+		self.postdata = urllib.urlencode({'pixiv_id' : '634784732@qq.com',
+			'password' : 'cs741111',
 			'post_key' : post_key,
 			'return_to' : 'https://www.pixiv.net/'
 			})
@@ -48,11 +52,11 @@ class PixivSpider:
 		self.imgIDList = ['62578571']
 
 	def login(self):
-		print('正在登录...')
+		log.out('正在登录...')
 		#登录
 		self.response = self.se.post(self.loginUrl, data=self.postdata, headers=self.headers)
-		print('登录成功')
-		#print('Cookie:', self.se.cookies)
+		log.out('登录成功')
+		#log.out('Cookie:', self.se.cookies)
 
 	#下载收藏资源
 	def download_bookmark(self):
@@ -81,7 +85,7 @@ class PixivSpider:
 		for li in li_list:
 			href = li.find('a')['href']
 			jump_to_url = self.main_url + href
-			#print('jump_to_url...'+jump_to_url)
+			#log.out('jump_to_url...'+jump_to_url)
 			jump_to_html = self.get_html(jump_to_url).text
 
 			time.sleep(1)
@@ -89,7 +93,7 @@ class PixivSpider:
 			img_info = img_soup.find('div', attrs={'class', 'works_display'}).find('div', attrs={'class', '_layout-thumbnail ui-modal-trigger'})
 			if img_info is None:
 				continue
-			#print(img_info)
+			#log.out(img_info)
 			self.download_img(img_info, jump_to_url)
 
 	def download_img(self, img_info, href):
@@ -99,21 +103,24 @@ class PixivSpider:
 		file_name = file_name.split('_')[0]
 		src_headers = self.headers
 		src_headers['Referer'] = href
-		print(src)
+		log.out(src)
 		try:
 			html = requests.get(src, headers=src_headers)
 			img = html.content
 		except:
-			print('获取该图片失败:'+src)
+			log.out('获取该图片失败:'+src)
 			return False
 		if os.path.exists(os.path.join(file_name+'.jpg')):
-			print('跳过重复图片')
+			log.out('跳过重复图片')
 		else:
-			print('正在保存...'+file_name)
+			log.out('正在保存...'+file_name)
 			f = open(file_name+'.jpg', 'ab')
 			f.write(img)
 			#存到当前已抓取ID列表
 			self.imgIDList.append(file_name)
+			#写入数据库
+			#if not dbHelper.check_image_exist():
+			#	dbHelper.insert_img(int(file_name),'aaaa','fff',1234)
 
 	#获取对应url里的html文本
 	def get_html(self, url, proxy=None, num_retries = 6):
@@ -122,11 +129,11 @@ class PixivSpider:
 				return self.se.get(url, headers=self.headers, timeout=self.timeout)
 			except:
 				if num_retries > 0:
-					print('打开网页出错，5秒后重试...')
+					log.out('打开网页出错，5秒后重试...')
 					time.sleep(5)
 					return self.get_html(url,num_retries = num_retries - 1)
 				else:
-					print('开始使用代理...')
+					log.out('开始使用代理...')
 					ip = requestPool.get_randomIP()
 					now_proxy = {'http': ip}
 					return self.get_html(url, proxy=now_proxy, timeout=self.timeout)
@@ -135,21 +142,21 @@ class PixivSpider:
 				return self.se.get(url, headers=self.headers, proxies=proxy, timeout=self.timeout)
 			except:
 				if num_retries > 0:
-					print('5秒后更换代理重试...')
+					log.out('5秒后更换代理重试...')
 					time.sleep(5)
 					ip = requestPool.get_randomIP()
-					print('当前代理ip：'+ip)
+					log.out('当前代理ip：'+ip)
 					now_proxy = {'http': ip}
 					return self.get_html(url, proxy=now_proxy, timeout=self.timeout, num_retries = num_retries - 1)
 				else:
-					print('代理也拯救不了...')
-					print('10秒后取消代理重新连接...')
+					log.out('代理也拯救不了...')
+					log.out('10秒后取消代理重新连接...')
 					return self.get_html(url)
 		
 
 	#初始化存储路径,按照日期
 	def mkdir(self):
-		print('初始化存储路径...')
+		log.out('初始化存储路径...')
 		nowDataStr = time.strftime("%Y-%m-%d", time.localtime())
 		#self.work_path = nowDataStr.strip()
 		self.work_path = self.download_path
@@ -162,6 +169,12 @@ class PixivSpider:
 			os.chdir(os.path.join(self.work_path))
 			return False
 
+	def closeHandler(self):
+		os.chdir(sys.path[0])
+		f = open('cache.dat', 'wb')
+		f.write(','.join(map(str,self.imgIDList)))
+		f.close()
+
 	def link_start(self):
 		self.mkdir()
 		self.login()
@@ -170,3 +183,9 @@ class PixivSpider:
 
 pSpider = PixivSpider()
 pSpider.link_start()
+
+#关闭窗口回调
+def on_close(sig):
+	pSpider.closeHandler()
+
+win32api.SetConsoleCtrlHandler(on_close, True)

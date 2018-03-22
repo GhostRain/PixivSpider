@@ -85,7 +85,7 @@ class PixivSpider:
 		for li in li_list:
 			href = li.find('a')['href']
 			jump_to_url = self.main_url + href
-			#log.out('jump_to_url...'+jump_to_url)
+			log.out('jump_to_url...'+jump_to_url)
 			jump_to_html = self.get_html(jump_to_url).text
 
 			time.sleep(1)

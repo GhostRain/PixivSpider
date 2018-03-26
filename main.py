@@ -41,8 +41,8 @@ class PixivSpider:
 		post_key = post_key_soup.find('input')['value']
 		log.out("post_key="+post_key)
 		
-		self.postdata = urllib.urlencode({'pixiv_id' : '634784732@qq.com',
-			'password' : 'cs741111',
+		self.postdata = urllib.urlencode({'pixiv_id' : 'xxxx@qq.com',
+			'password' : 'xxxx',
 			'post_key' : post_key,
 			'return_to' : 'https://www.pixiv.net/'
 			})
